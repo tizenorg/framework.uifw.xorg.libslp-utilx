@@ -1,9 +1,8 @@
 #sbs-git:slp/pkgs/l/libslp-utilx libslp-utilx 0.1.7 5957503c84e65113399e346c7d5618e73957d6ff
 Name:       libslp-utilx
 Summary:    utilX
-Version:    0.1.32
-Release:    1.1
-VCS:        framework/uifw/xorg/libslp-utilx#libslp-utilx-0.1.23-1.1-27-ga47333741b68616ea6a0dc58e55951c2b2089cdc
+Version:    0.4.5
+Release:    1
 Group:      System/Libraries
 License:    Apache-2.0
 Source0:    %{name}-%{version}.tar.gz
@@ -29,6 +28,7 @@ Utility functions for the XWindow
 Summary:    utilX
 Group:      Development/Libraries
 Requires:   %{name} = %{version}-%{release}
+Requires:   pkgconfig(xproto)
 Requires:   pkgconfig(x11)
 
 %description devel
@@ -64,7 +64,7 @@ cp %{_builddir}/%{buildsubdir}/LICENSE.APLv2 %{buildroot}/usr/share/license/%{na
 
 %files devel
 %defattr(-,root,root,-)
-/usr/include/utilX.h
+/usr/include/*
 /usr/lib/libutilX.so
 /usr/lib/pkgconfig/utilX.pc
 
