@@ -8,5 +8,6 @@ includedir=@INCLUDEDIR@
 Name: libSLP-utilX
 Description: SAMSUNG Linux platform X11 utilities library
 Version: @VERSION@
+Requires: xproto x11
 Libs: -L${libdir} -lutilX
 Cflags: -I${includedir}

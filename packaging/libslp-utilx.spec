@@ -1,8 +1,8 @@
 #sbs-git:slp/pkgs/l/libslp-utilx libslp-utilx 0.1.7 5957503c84e65113399e346c7d5618e73957d6ff
 Name:       libslp-utilx
-Summary:    utilX 
-Version:    0.1.7
-Release:    1.1
+Summary:    utilX
+Version:    0.4.5
+Release:    1
 Group:      System/Libraries
 License:    Apache-2.0
 Source0:    %{name}-%{version}.tar.gz
@@ -16,8 +16,9 @@ BuildRequires: pkgconfig(x11)
 BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xv)
 BuildRequires: pkgconfig(xdamage)
+BuildRequires: pkgconfig(xrandr)
 BuildRequires: pkgconfig(libdrm)
-BuildRequires: pkgconfig(libdrm_slp)
+BuildRequires: pkgconfig(libtbm)
 
 %description
 Utility functions for the XWindow
@@ -27,6 +28,8 @@ Utility functions for the XWindow
 Summary:    utilX
 Group:      Development/Libraries
 Requires:   %{name} = %{version}-%{release}
+Requires:   pkgconfig(xproto)
+Requires:   pkgconfig(x11)
 
 %description devel
 Utility functions for the XWindow (developement files)
@@ -45,6 +48,9 @@ make %{?jobs:-j%jobs}
 rm -rf %{buildroot}
 %make_install
 
+# for license notification
+mkdir -p %{buildroot}/usr/share/license
+cp %{_builddir}/%{buildsubdir}/LICENSE.APLv2 %{buildroot}/usr/share/license/%{name}
 
 %post -p /sbin/ldconfig
 
@@ -54,11 +60,11 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root,-)
 /usr/lib/libutilX.so.*
-
+/usr/share/license/%{name}
 
 %files devel
 %defattr(-,root,root,-)
-/usr/include/utilX.h
+/usr/include/*
 /usr/lib/libutilX.so
 /usr/lib/pkgconfig/utilX.pc
 

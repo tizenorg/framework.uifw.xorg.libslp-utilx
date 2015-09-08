@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 PROJECT(utilX C)
 
 SET(SRCS x11.c)
-SET(HEADERS utilX.h)
+SET(HEADERS utilX.h utilX_ext.h)
 
 SET(PREFIX ${CMAKE_INSTALL_PREFIX})
 SET(EXEC_PREFIX "\${prefix}")
@@ -14,7 +14,7 @@ SET(VERSION "${VERSION_MAJOR}.1.0")
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR})
 
 INCLUDE(FindPkgConfig)
-pkg_check_modules(pkgs REQUIRED x11 xext xv xdamage libdrm libdrm_slp libdri2)
+pkg_check_modules(pkgs REQUIRED x11 xext xv xdamage libdrm libtbm libdri2 xrandr)
 
 FOREACH(flag ${pkgs_CFLAGS})
 	SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
