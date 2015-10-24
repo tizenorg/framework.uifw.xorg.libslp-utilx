@@ -1,7 +1,7 @@
 #sbs-git:slp/pkgs/l/libslp-utilx libslp-utilx 0.1.7 5957503c84e65113399e346c7d5618e73957d6ff
 Name:       libslp-utilx
 Summary:    utilX
-Version:    0.4.5
+Version:    0.5.4
 Release:    1
 Group:      System/Libraries
 License:    Apache-2.0
@@ -19,6 +19,7 @@ BuildRequires: pkgconfig(xdamage)
 BuildRequires: pkgconfig(xrandr)
 BuildRequires: pkgconfig(libdrm)
 BuildRequires: pkgconfig(libtbm)
+BuildRequires: pkgconfig(ttrace)
 
 %description
 Utility functions for the XWindow

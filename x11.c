@@ -42,6 +42,19 @@
 #include <tbm_bufmgr.h>
 #include <dri2.h>
 
+#ifdef ENABLE_TTRACE
+#include <ttrace.h>
+
+#define TTRACE_INPUT_BEGIN(NAME) traceBegin(TTRACE_TAG_INPUT, NAME)
+#define TTRACE_INPUT_END() traceEnd(TTRACE_TAG_INPUT)
+#define TTRACE_VIDEO_BEGIN(NAME) traceBegin(TTRACE_TAG_VIDEO, NAME)
+#define TTRACE_VIDEO_END() traceEnd(TTRACE_TAG_VIDEO)
+#else /* ENABLE_TTRACE */
+#define TTRACE_INPUT_BEGIN(NAME)
+#define TTRACE_INPUT_END()
+#define TTRACE_VIDEO_BEGIN(NAME)
+#define TTRACE_VIDEO_END()
+#endif /* ENABLE_TTRACE */
 
 #define UTILX_DEBUG 0
 #if UTILX_DEBUG
@@ -64,59 +77,61 @@ static Atom _atom_window_pixman = None;
 
 const unsigned long maxlen = 1024l;
 
-static void _utilx_set_window_property (Display* dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int num);
-static int _utilx_get_window_property (Display* dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int len);
+static void _utilx_set_window_property(Display *dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int num);
+static int _utilx_get_window_property(Display *dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int len);
 
 
-API void utilx_set_system_notification_level (Display* dpy, Window win, Utilx_Notification_Level level)
+API void utilx_set_system_notification_level(Display *dpy, Window win, Utilx_Notification_Level level)
 {
-	UTILX_TRACE ("[UTILX] utilx_set_system_notification_level... win = %x, level = %d\n", win, level);
+	traceBegin(TTRACE_TAG_INPUT, "XORG:UTILX:SET_SYSTEM_NOTIFICATION_LEVEL(%d)", level);
+	UTILX_TRACE("[UTILX] utilx_set_system_notification_level... win = %x, level = %d\n", win, level);
 
 	int noti_level;
 
-	if (dpy == NULL)
-	{
-		fprintf (stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
-		return;
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+		goto out;
 	}
 
-	switch (level)
-	{
-		case UTILX_NOTIFICATION_LEVEL_LOW:
-			noti_level = 50;
-			break;
+	switch (level) {
+	case UTILX_NOTIFICATION_LEVEL_LOW:
+		noti_level = 50;
+		break;
 
-		case UTILX_NOTIFICATION_LEVEL_NORMAL:
-			noti_level = 100;
-			break;
+	case UTILX_NOTIFICATION_LEVEL_NORMAL:
+		noti_level = 100;
+		break;
 
-		case UTILX_NOTIFICATION_LEVEL_HIGH:
-			noti_level = 150;
-			break;
+	case UTILX_NOTIFICATION_LEVEL_HIGH:
+		noti_level = 150;
+		break;
 
-		default:
-			noti_level = 50;
-			break;
+	default:
+		noti_level = 50;
+		break;
 	}
 
-	if (!_atom_notification_level)
-	{
-		_atom_notification_level = XInternAtom (dpy, "_E_ILLUME_NOTIFICATION_LEVEL", False);
-		if (!_atom_notification_level)
-		{
-			fprintf (stderr, "[UTILX] Error.. Cannot create _E_ILLUME_NOTIFICATION_LEVEL atom.. %s (%d)\n", __func__, __LINE__);
-			return;
+	if (!_atom_notification_level) {
+		_atom_notification_level = XInternAtom(dpy, "_E_ILLUME_NOTIFICATION_LEVEL", False);
+		if (!_atom_notification_level) {
+			fprintf(stderr, "[UTILX] Error.. Cannot create _E_ILLUME_NOTIFICATION_LEVEL atom.. %s (%d)\n", __func__, __LINE__);
+			goto out;
 		}
 	}
 
-	_utilx_set_window_property (dpy, win, _atom_notification_level, XA_CARDINAL,
+	_utilx_set_window_property(dpy, win, _atom_notification_level, XA_CARDINAL,
 			(unsigned int *)&noti_level, 1);
+out:
+	TTRACE_INPUT_END();
+	return;
 }
 
 
-API Utilx_Notification_Level utilx_get_system_notification_level (Display* dpy, Window win)
+API Utilx_Notification_Level utilx_get_system_notification_level(Display *dpy, Window win)
 {
-	UTILX_TRACE ("[UTILX] utilx_get_system_notification_level... win = %x\n", win);
+	TTRACE_INPUT_BEGIN("XORG:UTILX:GET_SYSTEM_NOTIFICATION_LEVEL");
+
+	UTILX_TRACE("[UTILX] utilx_get_system_notification_level... win = %x\n", win);
 
 	Utilx_Notification_Level noti_level;
 	unsigned int level;
@@ -124,67 +139,181 @@ API Utilx_Notification_Level utilx_get_system_notification_level (Display* dpy, 
 
 	noti_level = UTILX_NOTIFICATION_LEVEL_LOW;
 
-	if (dpy == NULL)
-	{
-		fprintf (stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
 		goto error;
 	}
 
-	if (!_atom_notification_level)
-	{
-		_atom_notification_level = XInternAtom (dpy, "_E_ILLUME_NOTIFICATION_LEVEL", False);
-		if (!_atom_notification_level)
-		{
-			fprintf (stderr, "[UTILX] Error.. Cannot create _E_ILLUME_NOTIFICATION_LEVEL atom.. %s (%d)\n", __func__, __LINE__);
+	if (!_atom_notification_level) {
+		_atom_notification_level = XInternAtom(dpy, "_E_ILLUME_NOTIFICATION_LEVEL", False);
+		if (!_atom_notification_level) {
+			fprintf(stderr, "[UTILX] Error.. Cannot create _E_ILLUME_NOTIFICATION_LEVEL atom.. %s (%d)\n", __func__, __LINE__);
 			goto error;
 		}
 	}
 
-	ret = _utilx_get_window_property (dpy, win, _atom_notification_level, XA_CARDINAL,
+	ret = _utilx_get_window_property(dpy, win, _atom_notification_level, XA_CARDINAL,
 			(unsigned int *)&level, 1);
 
-	if (ret > 0)
-	{
-		switch (level)
-		{
-			case 50:
-				noti_level = UTILX_NOTIFICATION_LEVEL_LOW;
-				break;
+	if (ret > 0) {
+		switch (level) {
+		case 50:
+			noti_level = UTILX_NOTIFICATION_LEVEL_LOW;
+			break;
 
-			case 100:
-				noti_level = UTILX_NOTIFICATION_LEVEL_NORMAL;
-				break;
+		case 100:
+			noti_level = UTILX_NOTIFICATION_LEVEL_NORMAL;
+			break;
 
-			case 150:
-				noti_level = UTILX_NOTIFICATION_LEVEL_HIGH;
-				break;
+		case 150:
+			noti_level = UTILX_NOTIFICATION_LEVEL_HIGH;
+			break;
 
-			default:
-				noti_level = UTILX_NOTIFICATION_LEVEL_LOW;
-				break;
+		default:
+			noti_level = UTILX_NOTIFICATION_LEVEL_LOW;
+			break;
 		}
-	}
-	else
-	{
+	} else {
 		noti_level = UTILX_NOTIFICATION_LEVEL_LOW;
 	}
 
 error:
+	TTRACE_INPUT_END();
 	return noti_level;
 }
 
-static void
-_utilx_set_window_property (Display* dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int num)
+
+API int utilx_set_system_notification_priority(Display *dpy, Window win, Utilx_Notification_Priority priority)
 {
-	XChangeProperty (dpy, win, atom, type, 32, PropModeReplace, (unsigned char *)val, num);
-	XSync(dpy, 0 );
+	traceBegin(TTRACE_TAG_INPUT, "XORG:UTILX:SET_NOTIFICATION_PRIORITY(%d)", priority);
+	UTILX_TRACE("[UTILX] utilx_set_system_notification_priority... win = %x, priority = %d\n", win, priority);
+
+	int noti_priority;
+
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+		goto err;
+	}
+
+	switch (priority) {
+	case UTILX_NOTIFICATION_PRIORITY_NONE:
+		noti_priority = 0;
+		break;
+
+	case UTILX_NOTIFICATION_PRIORITY_DEFAULT:
+		noti_priority = 51;
+		break;
+
+	case UTILX_NOTIFICATION_PRIORITY_MEDIUM:
+		noti_priority = 101;
+		break;
+
+	case UTILX_NOTIFICATION_PRIORITY_HIGH:
+		noti_priority = 131;
+		break;
+
+	case UTILX_NOTIFICATION_PRIORITY_TOP:
+		noti_priority = 151;
+		break;
+
+	default: goto err;
+	}
+
+	if (!_atom_notification_level) {
+		_atom_notification_level = XInternAtom(dpy, "_E_ILLUME_NOTIFICATION_LEVEL", False);
+		if (!_atom_notification_level) {
+			fprintf(stderr, "[UTILX] Error.. Cannot create _E_ILLUME_NOTIFICATION_LEVEL atom.. %s (%d)\n", __func__, __LINE__);
+			goto err;
+		}
+	}
+
+	_utilx_set_window_property(dpy, win, _atom_notification_level, XA_CARDINAL,
+			(unsigned int *)&noti_priority, 1);
+
+	TTRACE_INPUT_END();
+	return 1;
+
+err:
+	TTRACE_INPUT_END();
+	return 0;
+}
+
+
+API Utilx_Notification_Priority utilx_get_system_notification_priority(Display *dpy, Window win)
+{
+	TTRACE_INPUT_BEGIN("XORG:UTILX:GET_SYSTEM_NOTIFICATION_PRIORITY");
+
+	UTILX_TRACE("[UTILX] utilx_get_system_notification_priority... win = %x\n", win);
+
+	Utilx_Notification_Level noti_priority;
+	unsigned int priority;
+	int ret;
+
+	noti_priority = UTILX_NOTIFICATION_PRIORITY_UNKNOWN;
+
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+		goto error;
+	}
+
+	if (!_atom_notification_level) {
+		_atom_notification_level = XInternAtom(dpy, "_E_ILLUME_NOTIFICATION_LEVEL", False);
+		if (!_atom_notification_level) {
+			fprintf(stderr, "[UTILX] Error.. Cannot create _E_ILLUME_NOTIFICATION_LEVEL atom.. %s (%d)\n", __func__, __LINE__);
+			goto error;
+		}
+	}
+
+	ret = _utilx_get_window_property(dpy, win, _atom_notification_level, XA_CARDINAL,
+			(unsigned int *)&priority, 1);
+
+	if (ret > 0) {
+		switch (priority) {
+		case 0:
+			noti_priority = UTILX_NOTIFICATION_PRIORITY_NONE;
+			break;
+
+		case 51:
+			noti_priority = UTILX_NOTIFICATION_PRIORITY_DEFAULT;
+			break;
+
+		case 101:
+			noti_priority = UTILX_NOTIFICATION_PRIORITY_MEDIUM;
+			break;
+
+		case 131:
+			noti_priority = UTILX_NOTIFICATION_PRIORITY_HIGH;
+			break;
+
+		case 151:
+			noti_priority = UTILX_NOTIFICATION_PRIORITY_TOP;
+			break;
+
+		default:
+			noti_priority = UTILX_NOTIFICATION_PRIORITY_UNKNOWN;
+			break;
+		}
+	} else {
+		noti_priority = UTILX_NOTIFICATION_PRIORITY_UNKNOWN;
+	}
+
+error:
+	TTRACE_INPUT_END();
+	return noti_priority;
+}
+
+static void
+_utilx_set_window_property(Display *dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int num)
+{
+	XChangeProperty(dpy, win, atom, type, 32, PropModeReplace, (unsigned char *)val, num);
+	XSync(dpy, 0);
 }
 
 
 static int
-_utilx_get_window_property (Display* dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int len)
+_utilx_get_window_property(Display *dpy, Window win, Atom atom, Atom type, unsigned int *val, unsigned int len)
 {
-	unsigned char* prop_ret;
+	unsigned char *prop_ret;
 	Atom type_ret;
 	unsigned long bytes_after, num_ret;
 	int format_ret;
@@ -194,27 +323,19 @@ _utilx_get_window_property (Display* dpy, Window win, Atom atom, Atom type, unsi
 	prop_ret = NULL;
 	if (XGetWindowProperty(dpy, win, atom, 0, 0x7fffffff, False,
 				type, &type_ret, &format_ret, &num_ret,
-				&bytes_after, &prop_ret) != Success)
-	{
+				&bytes_after, &prop_ret) != Success) {
 		return -1;
 	}
 
-	if (type_ret != type || format_ret != 32)
-	{
+	if (type_ret != type || format_ret != 32) {
 		num = -1;
-	}
-	else if (num_ret == 0 || !prop_ret)
-	{
+	} else if (num_ret == 0 || !prop_ret) {
 		num = 0;
-	}
-	else
-	{
+	} else {
 		if (num_ret < len)
-		len = num_ret;
+			len = num_ret;
 		for (i = 0; i < len; i++)
-		{
 			val[i] = ((unsigned long *)prop_ret)[i];
-		}
 		num = len;
 	}
 
@@ -226,7 +347,7 @@ _utilx_get_window_property (Display* dpy, Window win, Atom atom, Atom type, unsi
 }
 
 
-static unsigned long _get_list_of_grabbed_key (Display *disp, Window win, int **key_list)
+static unsigned long _get_list_of_grabbed_key(Display *disp, Window win, int **key_list)
 {
 	Atom ret_type;
 	int ret_format;
@@ -234,40 +355,37 @@ static unsigned long _get_list_of_grabbed_key (Display *disp, Window win, int **
 	unsigned long sz_remains_data;
 
 	if (XGetWindowProperty(disp, win,
-		_atom_grab_key, 0, 0x7fffffff, False, XA_CARDINAL,
-		&ret_type, &ret_format, &nr_item,
-		&sz_remains_data, (unsigned char**)key_list) != Success)
-	{
+				_atom_grab_key, 0, 0x7fffffff, False, XA_CARDINAL,
+				&ret_type, &ret_format, &nr_item,
+				&sz_remains_data, (unsigned char **)key_list) != Success) {
 		nr_item = 0;
 	}
 
-//	fprintf(stderr, "[31m%d - %lu[0m\n", ret_format, nr_item);
+	/* fprintf(stderr, "[31m%d - %lu[0m\n", ret_format, nr_item); */
 
 	return nr_item;
 }
 
 
-static void _free_list_of_grabbed_key (int *key_list)
+static void _free_list_of_grabbed_key(int *key_list)
 {
-	if (key_list) {
+	if (key_list)
 		XFree(key_list);
-	}
 }
 
 
-static void _free_new_list_of_grabbed_key (int *new_key_list)
+static void _free_new_list_of_grabbed_key(int *new_key_list)
 {
-	if (new_key_list) {
+	if (new_key_list)
 		free(new_key_list);
-	}
 }
 
 
-static int _search_grabbed_key (int *key_list, int key, unsigned long cnt)
+static int _search_grabbed_key(int *key_list, int key, unsigned long cnt)
 {
 	register int i;
 
-	for (i = cnt - 1; i >= 0; i --) {
+	for (i = cnt - 1; i >= 0; i--) {
 		if (key_list[i] == key) break;
 	}
 
@@ -275,39 +393,38 @@ static int _search_grabbed_key (int *key_list, int key, unsigned long cnt)
 }
 
 
-static int *_del_grabbed_key (int *key_list, int i, unsigned long *cnt)
+static int *_del_grabbed_key(int *key_list, int i, unsigned long *cnt)
 {
 	int *new_key_list = NULL;
 
-	// Only one element is exists in the list of grabbed key
-	(*cnt) --;
+	/* Only one element is exists in the list of grabbed key */
+	(*cnt)--;
 
 	if (*cnt == 0) return NULL;
 
-	// Shrink the buffer
+	/* Shrink the buffer */
 	new_key_list = malloc((*cnt) * sizeof(int));
 	if (new_key_list == NULL) {
 		perror(__func__);
 		return NULL;
 	}
 
-	// copy head
-	if (i > 0) {
-		memcpy(new_key_list, key_list, sizeof(int) * i);
-	}
+	/* copy head */
+	if (i > 0)
+		memcpy(new_key_list, key_list, i * sizeof(int));
 
-	// copy tail
+	/* copy tail */
 	if ((*cnt) - i > 0) {
 		memcpy(new_key_list + i,
-			key_list + i + 1,
-			sizeof(int) * ((*cnt) - i)
-		);
+				key_list + i + 1,
+				((*cnt) - i) * sizeof(int)
+		      );
 	}
 	return new_key_list;
 }
 
 
-static void _set_exclusive_grab_info_to_root (Display *disp, int keycode, Window win, int grab_mode)
+static void _set_exclusive_grab_info_to_root(Display *disp, int keycode, Window win, int grab_mode)
 {
 	int i;
 	int *key_list = NULL;
@@ -318,38 +435,32 @@ static void _set_exclusive_grab_info_to_root (Display *disp, int keycode, Window
 	unsigned long sz_remains_data;
 	Window ex_grabwin;
 
-	if( grab_mode == EXCLUSIVE_GRAB )
-	{
-		if( _atom_grab_excl_win == None )
+	if (grab_mode == EXCLUSIVE_GRAB) {
+		if (_atom_grab_excl_win == None)
 			_atom_grab_excl_win = XInternAtom(disp, STR_ATOM_GRAB_EXCL_WIN, False);
 		ex_grabwin = _atom_grab_excl_win;
-	}
-	else if( grab_mode == OR_EXCLUSIVE_GRAB )
-	{
-		if( _atom_grab_or_excl_win == None )
+	} else if (grab_mode == OR_EXCLUSIVE_GRAB) {
+		if (_atom_grab_or_excl_win == None)
 			_atom_grab_or_excl_win = XInternAtom(disp, STR_ATOM_GRAB_OR_EXCL_WIN, False);
 		ex_grabwin = _atom_grab_or_excl_win;
-	}
-	else
+	} else
 		return;
 
 	if (XGetWindowProperty(disp, DefaultRootWindow(disp),
-		ex_grabwin, 0, 0x7fffffff, False, XA_CARDINAL,
-		&ret_type, &ret_format, &nr_item,
-		&sz_remains_data, (unsigned char**)&key_list) != Success)
-	{
+				ex_grabwin, 0, 0x7fffffff, False, XA_CARDINAL,
+				&ret_type, &ret_format, &nr_item,
+				&sz_remains_data, (unsigned char **)&key_list) != Success) {
 		fprintf(stderr, "[utilX][%s] Fail to get root window property !\n", __FUNCTION__);
 		goto out;
 	}
 
-	for( i=0 ; i < nr_item ; i++ )
-	{
-		if( key_list && (key_list[i] == keycode) )
+	for (i = 0 ; i < nr_item ; i++) {
+		if (key_list && (key_list[i] == keycode))
 			return;
 	}
 
 	XChangeProperty(disp, DefaultRootWindow(disp), ex_grabwin, XA_CARDINAL, 32,
-	nr_item ? PropModeAppend : PropModeReplace, (unsigned char *)&keycode, 1);
+			nr_item ? PropModeAppend : PropModeReplace, (unsigned char *)&keycode, 1);
 	XSync(disp, False);
 
 out:
@@ -358,7 +469,7 @@ out:
 }
 
 
-static void _unset_exclusive_grab_info_to_root (Display *disp, int keycode, int grab_mode)
+static void _unset_exclusive_grab_info_to_root(Display *disp, int keycode, int grab_mode)
 {
 	int i;
 	unsigned long cnt = 0;
@@ -371,71 +482,56 @@ static void _unset_exclusive_grab_info_to_root (Display *disp, int keycode, int 
 	unsigned long sz_remains_data;
 	Window ex_grabwin;
 
-	if( grab_mode == EXCLUSIVE_GRAB )
-	{
-		if( _atom_grab_excl_win == None )
+	if (grab_mode == EXCLUSIVE_GRAB) {
+		if (_atom_grab_excl_win == None)
 			_atom_grab_excl_win = XInternAtom(disp, STR_ATOM_GRAB_EXCL_WIN, False);
 		ex_grabwin = _atom_grab_excl_win;
-	}
-	else if( grab_mode == OR_EXCLUSIVE_GRAB )
-	{
-		if( _atom_grab_or_excl_win == None )
+	} else if (grab_mode == OR_EXCLUSIVE_GRAB) {
+		if (_atom_grab_or_excl_win == None)
 			_atom_grab_or_excl_win = XInternAtom(disp, STR_ATOM_GRAB_OR_EXCL_WIN, False);
 		ex_grabwin = _atom_grab_or_excl_win;
-	}
-	else
+	} else
 		return;
 
 	if (XGetWindowProperty(disp, DefaultRootWindow(disp),
-		ex_grabwin, 0, 0x7fffffff, False, XA_CARDINAL,
-		&ret_type, &ret_format, &nr_item,
-		&sz_remains_data, (unsigned char**)&key_list) != Success)
-	{
+				ex_grabwin, 0, 0x7fffffff, False, XA_CARDINAL,
+				&ret_type, &ret_format, &nr_item,
+				&sz_remains_data, (unsigned char **)&key_list) != Success) {
 		nr_item = 0;
 	}
 
 	if (nr_item == 0)
-	{
 		goto out;
-	}
 
-	for( i=0 ; i < nr_item ; i++ )
-	{
-		if( key_list[i] == keycode )//&& grab_mode == EXCLUSIVE_GRAB )
-		{
+	for (i = 0; i < nr_item; i++) {
+		if (key_list[i] == keycode)/* && grab_mode == EXCLUSIVE_GRAB ) */ {
 			continue;
 		}
 		cnt++;
 	}
 
-	if( 0 < cnt )
-	{
+	if (0 < cnt) {
 		new_key_list = malloc(sizeof(int)*cnt);
 		cnt = 0;
-	}
-	else
+	} else
 		new_key_list = NULL;
 
-	if( !new_key_list )
-	{
-		//fprintf(stderr, "[32m[utilX][%s] Fail to allocation memory for new_key_list ! [0m\n", __FUNCTION__);
+	if (!new_key_list) {
+		/* fprintf(stderr, "[32m[utilX][%s] Fail to allocation memory for new_key_list ! [0m\n", __FUNCTION__); */
 		XDeleteProperty(disp, DefaultRootWindow(disp), ex_grabwin);
 		XSync(disp, False);
 		goto out;
 	}
 
-	for( i=0 ; i < nr_item ; i++ )
-	{
-		if( key_list[i] == keycode )//&& grab_mode == EXCLUSIVE_GRAB )
-		{
+	for (i = 0; i < nr_item; i++) {
+		if (key_list[i] == keycode)/* && grab_mode == EXCLUSIVE_GRAB ) */ {
 			continue;
-		}
-		else
+		} else
 			new_key_list[cnt++] = key_list[i];
 	}
 
 	XChangeProperty(disp, DefaultRootWindow(disp), ex_grabwin, XA_CARDINAL, 32,
-		PropModeReplace, (unsigned char *)new_key_list, cnt);
+			PropModeReplace, (unsigned char *)new_key_list, cnt);
 
 	XSync(disp, False);
 
@@ -447,7 +543,7 @@ out:
 }
 
 
-static int _is_grabbed_key_exclusively (Display* disp, int keycode, int grab_mode)
+static int _is_grabbed_key_exclusively(Display *disp, int keycode, int grab_mode)
 {
 	int i, result = 0;
 	int *key_list = NULL;
@@ -458,37 +554,30 @@ static int _is_grabbed_key_exclusively (Display* disp, int keycode, int grab_mod
 	unsigned long sz_remains_data;
 	Window ex_grabwin;
 
-	if( grab_mode == EXCLUSIVE_GRAB )
-	{
-		if( _atom_grab_excl_win == None )
+	if (grab_mode == EXCLUSIVE_GRAB) {
+		if (_atom_grab_excl_win == None)
 			_atom_grab_excl_win = XInternAtom(disp, STR_ATOM_GRAB_EXCL_WIN, False);
 		ex_grabwin = _atom_grab_excl_win;
-	}
-	else if( grab_mode == OR_EXCLUSIVE_GRAB )
-	{
-		if( _atom_grab_or_excl_win == None )
+	} else if (grab_mode == OR_EXCLUSIVE_GRAB) {
+		if (_atom_grab_or_excl_win == None)
 			_atom_grab_or_excl_win = XInternAtom(disp, STR_ATOM_GRAB_OR_EXCL_WIN, False);
 		ex_grabwin = _atom_grab_or_excl_win;
-	}
-	else
+	} else
 		return result;
 
 	if (XGetWindowProperty(disp, DefaultRootWindow(disp),
-		ex_grabwin, 0, 0x7fffffff, False, XA_CARDINAL,
-		&ret_type, &ret_format, &nr_item,
-		&sz_remains_data, (unsigned char**)&key_list) != Success)
-	{
+				ex_grabwin, 0, 0x7fffffff, False, XA_CARDINAL,
+				&ret_type, &ret_format, &nr_item,
+				&sz_remains_data, (unsigned char **)&key_list) != Success) {
 		fprintf(stderr, "[%s] Fail to get root window property !\n", __FUNCTION__);
 		goto out;
 	}
 
-	for( i=0 ; i < nr_item ; i++ )
-	{
-		if( key_list[i] == keycode )
-        {
-	        _free_list_of_grabbed_key(key_list);
+	for (i = 0; i < nr_item; i++) {
+		if (key_list[i] == keycode) {
+			_free_list_of_grabbed_key(key_list);
 			return EXCLUSIVE_GRABBED_ALREADY;
-        }
+		}
 	}
 
 out:
@@ -496,24 +585,26 @@ out:
 	return result;
 }
 
-API int utilx_grab_key (Display* disp, Window win, const char* key, int grab_mode)
+API int utilx_grab_key(Display *disp, Window win, const char* key, int grab_mode)
 {
 	unsigned long cnt;
 	int *key_list = NULL;
-	int i, result=0, ret = 0;
+	int i, result = 0, ret = 0;
 	int keycode = 0;
 	KeySym keysym;
 	errno = EINVAL;
 
-	if( NULL == disp )
-	{
+	TTRACE_INPUT_BEGIN("XORG:UTILX:GRAB_KEY");
+
+	if (NULL == disp) {
 		fprintf(stderr, "[%s] Display is NULL\n", __FUNCTION__);
+
+		TTRACE_INPUT_END();
 		return -1;
 	}
 
-	if (_atom_grab_key == None) {
+	if (_atom_grab_key == None)
 		_atom_grab_key = XInternAtom(disp, STR_ATOM_GRAB_KEY, False);
-	}
 
 	if (!strncmp(key, "Keycode-", 8)) {
 		keycode = atoi(key + 8);
@@ -524,15 +615,12 @@ API int utilx_grab_key (Display* disp, Window win, const char* key, int grab_mod
 	}
 	if (keycode == 0) goto out;
 
-	if( grab_mode == EXCLUSIVE_GRAB )
-	{
-		//Window grabWin;
+	if (grab_mode == EXCLUSIVE_GRAB) {
+		/* Window grabWin; */
 		result = _is_grabbed_key_exclusively(disp, keycode, grab_mode);
 
-		if( result )
-		{
+		if (result)
 			goto out;
-		}
 	}
 
 	keycode |= grab_mode;
@@ -541,7 +629,7 @@ API int utilx_grab_key (Display* disp, Window win, const char* key, int grab_mod
 	if (cnt > 0) {
 		i = _search_grabbed_key(key_list, keycode, cnt);
 		_free_list_of_grabbed_key(key_list);
-		if ( i != -1 ) {
+		if (i != -1) {
 			fprintf(stderr, "Key is already grabbed\n");
 			goto out;
 		}
@@ -552,27 +640,24 @@ API int utilx_grab_key (Display* disp, Window win, const char* key, int grab_mod
 	XSync(disp, False);
 	keycode = keycode & (~GRAB_MODE_MASK);
 
-	if( EXCLUSIVE_GRAB == grab_mode )
+	if (EXCLUSIVE_GRAB == grab_mode)
 		_set_exclusive_grab_info_to_root(disp, keycode, win, grab_mode);
-	if( OR_EXCLUSIVE_GRAB == grab_mode )
-	{
+	if (OR_EXCLUSIVE_GRAB == grab_mode) {
 		ret = _is_grabbed_key_exclusively(disp, keycode, grab_mode);
 
-		if( !ret )
-		{
+		if (!ret)
 			_set_exclusive_grab_info_to_root(disp, keycode, win, grab_mode);
-		}
 	}
 
 	errno = 0;
 
 out:
-
+	TTRACE_INPUT_END();
 	return result;
 }
 
 
-API int utilx_ungrab_key (Display* disp, Window win, const char* key)
+API int utilx_ungrab_key(Display *disp, Window win, const char* key)
 {
 	int i;
 	unsigned long cnt;
@@ -583,15 +668,17 @@ API int utilx_ungrab_key (Display* disp, Window win, const char* key)
 	int ret = -1;
 	errno = EINVAL;
 
-	if( NULL == disp )
-	{
+	TTRACE_INPUT_BEGIN("XORG:UTILX:UNGRAB_KEY");
+
+	if (NULL == disp) {
 		fprintf(stderr, "[%s] Display is NULL\n", __FUNCTION__);
+
+		TTRACE_INPUT_END();
 		return -1;
 	}
 
-	if (_atom_grab_key == None) {
+	if (_atom_grab_key == None)
 		_atom_grab_key = XInternAtom(disp, STR_ATOM_GRAB_KEY, False);
-	}
 
 	if (!strncmp(key, "Keycode-", 8)) {
 		keycode = atoi(key + 8);
@@ -605,34 +692,28 @@ API int utilx_ungrab_key (Display* disp, Window win, const char* key)
 	cnt = _get_list_of_grabbed_key(disp, win, &key_list);
 	if (cnt == 0) goto out;
 
-	//EXCLUSIVE mode
+	/* EXCLUSIVE mode */
 	i = _search_grabbed_key(key_list, keycode | EXCLUSIVE_GRAB, cnt);
 
-	if ( i == -1)
-	{
-		//OR_EXCLUSIVE mode
+	if (i == -1) {
+		/* OR_EXCLUSIVE mode */
 		i = _search_grabbed_key(key_list, keycode | OR_EXCLUSIVE_GRAB, cnt);
 
-		if ( i == -1)
-		{
-			//TOP_POSITION mode
+		if (i == -1) {
+			/* TOP_POSITION mode */
 			i = _search_grabbed_key(key_list, keycode | TOP_POSITION_GRAB, cnt);
 
-			if (i == -1)
-			{
-				//SHARED mode
+			if (i == -1) {
+				/* SHARED mode */
 				i = _search_grabbed_key(key_list, keycode | SHARED_GRAB, cnt);
 
-				if (i == -1)
-				{
+				if (i == -1) {
 					_free_list_of_grabbed_key(key_list);
 					goto out;
 				}
 			}
 		}
-	}
-	else
-	{
+	} else {
 		_unset_exclusive_grab_info_to_root(disp, keycode, EXCLUSIVE_GRAB);
 	}
 
@@ -641,9 +722,8 @@ API int utilx_ungrab_key (Display* disp, Window win, const char* key)
 
 	if (new_key_list) {
 		XChangeProperty(disp, win, _atom_grab_key, XA_CARDINAL, 32,
-			PropModeReplace, (unsigned char *)new_key_list, cnt);
-	}
-	else {
+				PropModeReplace, (unsigned char *)new_key_list, cnt);
+	} else {
 		XDeleteProperty(disp, win, _atom_grab_key);
 	}
 	XSync(disp, False);
@@ -653,228 +733,242 @@ API int utilx_ungrab_key (Display* disp, Window win, const char* key)
 	errno = 0;
 
 out:
-
+	TTRACE_INPUT_END();
 	return ret;
 }
 
 static void
-_utilx_string_set_window_property( Display *dpy, Window win, Atom atom, char *val, unsigned int num)
+_utilx_string_set_window_property(Display *dpy, Window win, Atom atom, char *val, unsigned int num)
 {
-	XChangeProperty( dpy, win, atom, XA_STRING, 8, PropModeReplace, (unsigned char*)val, val ? strlen(val):0 );
+	XChangeProperty(dpy, win, atom, XA_STRING, 8, PropModeReplace, (unsigned char *)val, val ? strlen(val) : 0);
 }
 
-API void utilx_set_fake_launch_img(Display* dpy, Window win, char *file_name)
+API void utilx_set_fake_launch_img(Display *dpy, Window win, char *file_name)
 {
-	//UTILX_TRACE ("[UTILX] utilx_set_effect_state... win = %x, show_state = %d\n", win, enable);
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SET_FAKE_LAUNCH_IMG");
+	/* UTILX_TRACE("[UTILX] utilx_set_effect_state... win = %x, show_state = %d\n", win, enable); */
 
-	if ( dpy == NULL )
-	{
-		fprintf (stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+
+		TTRACE_VIDEO_END();
 		return;
 	}
-	if( !_atom_comp_fake_launch_image)
-		_atom_comp_fake_launch_image = XInternAtom(dpy, "_E_COMP_FAKE_LAUNCH_IMAGE",False);
+	if (!_atom_comp_fake_launch_image)
+		_atom_comp_fake_launch_image = XInternAtom(dpy, "_E_COMP_FAKE_LAUNCH_IMAGE", False);
 
 	_utilx_string_set_window_property(dpy, win, _atom_comp_fake_launch_image, file_name, 1);
+	TTRACE_VIDEO_END();
 }
 
-API int utilx_set_window_opaque_state (Display* dpy, Window win, Utilx_Opaque_State state)
+API int utilx_set_window_opaque_state(Display *dpy, Window win, Utilx_Opaque_State state)
 {
-	UTILX_TRACE ("[UTILX] utilx_set_window_opaque_state... win = %x, show_state = %d\n", win, state);
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SET_WINDOW_OPAQUE_STATE");
+
+	UTILX_TRACE("[UTILX] utilx_set_window_opaque_state... win = %x, show_state = %d\n", win, state);
 
 	unsigned int is_opaque;
 
-	if (dpy == NULL)
-	{
-		fprintf (stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] Error.. Invald Display.. %s (%d)\n", __func__, __LINE__);
+
+		TTRACE_VIDEO_END();
 		return 0;
 	}
 
-	switch (state)
-	{
-		case UTILX_OPAQUE_STATE_OFF:
-			is_opaque = 0;
-			break;
+	switch (state) {
+	case UTILX_OPAQUE_STATE_OFF:
+		is_opaque = 0;
+		break;
 
-		case UTILX_OPAQUE_STATE_ON:
-			is_opaque = 1;
-			break;
+	case UTILX_OPAQUE_STATE_ON:
+		is_opaque = 1;
+		break;
 
-		default:
-			fprintf (stderr, "[UTILX] Error.. Invald State.. %s (%d)\n", __func__, __LINE__);
-			return 0;
+	default:
+		fprintf(stderr, "[UTILX] Error.. Invald State.. %s (%d)\n", __func__, __LINE__);
+		TTRACE_VIDEO_END();
+		return 0;
 	}
 
-	if (!_atom_window_opaque)
-	{
-		_atom_window_opaque = XInternAtom (dpy, "_E_ILLUME_WINDOW_REGION_OPAQUE", False);
-		if (!_atom_window_opaque)
-		{
-			fprintf (stderr, "[UTILX] Error.. Cannot create _E_ILLUME_WINDOW_REGION_OPAQUE atom.. %s (%d)\n", __func__, __LINE__);
+	if (!_atom_window_opaque) {
+		_atom_window_opaque = XInternAtom(dpy, "_E_ILLUME_WINDOW_REGION_OPAQUE", False);
+		if (!_atom_window_opaque) {
+			fprintf(stderr, "[UTILX] Error.. Cannot create _E_ILLUME_WINDOW_REGION_OPAQUE atom.. %s (%d)\n", __func__, __LINE__);
+			TTRACE_VIDEO_END();
 			return 0;
 		}
 	}
 
-	_utilx_set_window_property (dpy, win, _atom_window_opaque, XA_CARDINAL,
+	_utilx_set_window_property(dpy, win, _atom_window_opaque, XA_CARDINAL,
 			(unsigned int *)&is_opaque, 1);
 
+	TTRACE_VIDEO_END();
 	return 1;
 }
 
-API UtilxScrnConf *utilx_scrnconf_allocate (void)
+API UtilxScrnConf *utilx_scrnconf_allocate(void)
 {
-    UtilxScrnConf *scrnconf = calloc (1, sizeof(UtilxScrnConf));
-    if (!scrnconf)
-    {
-        fprintf (stderr, "fail to allocate UtilxScrnConf\n");
-        return NULL;
-    }
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SCRNCONF_ALLOCATE");
 
-    return scrnconf;
+	UtilxScrnConf *scrnconf = calloc(1, sizeof(UtilxScrnConf));
+	if (!scrnconf) {
+		fprintf(stderr, "fail to allocate UtilxScrnConf\n");
+
+		TTRACE_VIDEO_END();
+		return NULL;
+	}
+
+	TTRACE_VIDEO_END();
+	return scrnconf;
 }
 
-API void utilx_scrnconf_free (UtilxScrnConf *scrnconf)
+API void utilx_scrnconf_free(UtilxScrnConf *scrnconf)
 {
-    if (!scrnconf)
-        return;
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SCRNCONF_FREE");
 
-    if (scrnconf->str_output)
-        free (scrnconf->str_output);
+	if (!scrnconf) {
+		TTRACE_VIDEO_END();
+		return;
+	}
 
-    if (scrnconf->str_resolution)
-        free (scrnconf->str_resolution);
+	if (scrnconf->str_output)
+		free(scrnconf->str_output);
 
-    free(scrnconf);
-    scrnconf = NULL;
+	if (scrnconf->str_resolution)
+		free(scrnconf->str_resolution);
+
+	free(scrnconf);
+	scrnconf = NULL;
+
+	TTRACE_VIDEO_END();
 }
 
-API int utilx_scrnconf_get_info (Display *dpy, UtilxScrnConf *scrnconf)
+API int utilx_scrnconf_get_info(Display *dpy, UtilxScrnConf *scrnconf)
 {
-    Window win;
-    Atom scrnconf_atom = None;
-    XTextProperty xtp;
-    char *str = NULL;
-    char *ptr = NULL;
-    int items;
-    char **list = NULL;
-    int i = 0;
-    int s;
+	Window win;
+	Atom scrnconf_atom = None;
+	XTextProperty xtp;
+	char *str = NULL;
+	char *ptr = NULL;
+	int items;
+	char **list = NULL;
+	int i = 0;
+	int s;
+	char *saveptr = NULL;
 
-    if (!dpy)
-        goto fail;
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SCRNCONF_GET_INFO");
 
-    if (!scrnconf)
-        goto fail;
+	if (!dpy)
+		goto fail;
 
-    win = DefaultRootWindow(dpy);
+	if (!scrnconf)
+		goto fail;
 
-    scrnconf_atom = XInternAtom (dpy, "_SCRNCONF_INFO", False);
+	win = DefaultRootWindow(dpy);
 
-    /* get property */
-    if (XGetTextProperty (dpy, win, &xtp, scrnconf_atom))
-    {
-        s = XmbTextPropertyToTextList (dpy, &xtp, &list, &items);
-        if ((s == XLocaleNotSupported) ||
-            (s == XNoMemory) || (s == XConverterNotFound))
-          str = strdup((char *)xtp.value);
-        else if ((s >= Success) && (items > 0))
-          str = strdup(list[0]);
+	scrnconf_atom = XInternAtom(dpy, "_SCRNCONF_INFO", False);
 
-        if (list)
-            XFreeStringList (list);
+	/* get property */
+	if (XGetTextProperty(dpy, win, &xtp, scrnconf_atom)) {
+		s = XmbTextPropertyToTextList(dpy, &xtp, &list, &items);
+		if ((s == XLocaleNotSupported) || (s == XNoMemory) || (s == XConverterNotFound))
+			str = strdup((char *)xtp.value);
+		else if ((s >= Success) && (items > 0))
+			str = strdup(list[0]);
 
-        XFree(xtp.value);
-    }
+		if (list)
+			XFreeStringList(list);
 
-    ptr = strtok (str, ",");
-    while (ptr != NULL)
-    {
-        if (i == 0)
-        {
-            scrnconf->str_output = calloc (1, strlen(ptr)+1);
-            if (!scrnconf->str_output)
-                goto fail;
+		XFree(xtp.value);
+	}
 
-            strcpy (scrnconf->str_output, ptr);
-        }
-        else if (i == 1)
-        {
-            if (!strcmp(ptr, "CONNECT"))
-                scrnconf->status = UTILX_SCRNCONF_STATUS_CONNECT;
-            else if (!strcmp(ptr, "ACTIVE"))
-                scrnconf->status = UTILX_SCRNCONF_STATUS_ACTIVE;
-            else
-                scrnconf->status = UTILX_SCRNCONF_STATUS_NULL;
-        }
-        else if (i == 2)
-        {
-            if (scrnconf->str_resolution) free(scrnconf->str_resolution);
-            scrnconf->str_resolution = calloc (1, strlen(ptr)+1);
-            if (!scrnconf->str_resolution)
-                goto fail;
+	ptr = strtok_r(str, ",", &saveptr);
+	while (ptr != NULL) {
+		if (i == 0) {
+			scrnconf->str_output = calloc(1, strlen(ptr)+1);
+			if (!scrnconf->str_output)
+				goto fail;
 
-            strcpy (scrnconf->str_resolution, ptr);
-        }
-        else if (i == 3)
-        {
-            if (!strcmp(ptr, "CLONE"))
-                scrnconf->dispmode = UTILX_SCRNCONF_DISPMODE_CLONE;
-            else if (!strcmp(ptr, "EXTENDED"))
-                scrnconf->dispmode = UTILX_SCRNCONF_DISPMODE_EXTENDED;
-            else
-                scrnconf->dispmode = UTILX_SCRNCONF_DISPMODE_NULL;
-        }
-        else
-           break;
+			strncpy(scrnconf->str_output, ptr, strlen(ptr));
+		} else if (i == 1) {
+			if (!strncmp(ptr, "CONNECT", sizeof("CONNECT")))
+				scrnconf->status = UTILX_SCRNCONF_STATUS_CONNECT;
+			else if (!strncmp(ptr, "ACTIVE", sizeof("ACTIVE")))
+				scrnconf->status = UTILX_SCRNCONF_STATUS_ACTIVE;
+			else
+				scrnconf->status = UTILX_SCRNCONF_STATUS_NULL;
+		} else if (i == 2) {
+			if (scrnconf->str_resolution) {
+				free(scrnconf->str_resolution);
+				scrnconf->str_resolution = NULL;
+			}
+			scrnconf->str_resolution = calloc(1, strlen(ptr)+1);
+			if (!scrnconf->str_resolution)
+				goto fail;
 
-        ptr = strtok (NULL, ",");
-        i++;
-    }
+			strncpy(scrnconf->str_resolution, ptr, strlen(ptr));
+		} else if (i == 3) {
+			if (!strncmp(ptr, "CLONE", sizeof("CLONE")))
+				scrnconf->dispmode = UTILX_SCRNCONF_DISPMODE_CLONE;
+			else if (!strncmp(ptr, "EXTENDED", sizeof("EXTENDED")))
+				scrnconf->dispmode = UTILX_SCRNCONF_DISPMODE_EXTENDED;
+			else
+				scrnconf->dispmode = UTILX_SCRNCONF_DISPMODE_NULL;
+		} else
+			break;
 
-    free (str);
+		ptr = strtok_r(NULL, ",", &saveptr);
+		i++;
+	}
 
-    return 1;
+	free(str);
+
+	TTRACE_VIDEO_END();
+	return 1;
 fail:
-    if (str)
-        free (str);
+	if (str)
+		free(str);
 
-    return 0;
+	TTRACE_VIDEO_END();
+	return 0;
 }
 
-API int utilx_scrnconf_set_dispmode (Display *dpy, Utilx_Scrnconf_Dispmode dispmode)
+API int utilx_scrnconf_set_dispmode(Display *dpy, Utilx_Scrnconf_Dispmode dispmode)
 {
-    Window win = DefaultRootWindow(dpy);
+	Window win = DefaultRootWindow(dpy);
 	XEvent xev;
 	Atom scrnconf_atom = None;
-    UtilxScrnConf *scrnconf = NULL;
+	UtilxScrnConf *scrnconf = NULL;
 
-    scrnconf = utilx_scrnconf_allocate ();
-    if (!scrnconf)
-        return 0;
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SCRNCONF_SET_DISPMODE");
 
-    if (!utilx_scrnconf_get_info (dpy, scrnconf))
-    {
-        utilx_scrnconf_free (scrnconf);
-        return 0;
-    }
+	scrnconf = utilx_scrnconf_allocate();
+	if (!scrnconf)
+		goto fail;
 
-    if (scrnconf->status  == UTILX_SCRNCONF_STATUS_NULL)
-    {
-        fprintf (stderr, "[utilx_scrnconf]: the status of screen configuration is null\n");
-        utilx_scrnconf_free (scrnconf);
-        return 0;
-    }
+	if (!utilx_scrnconf_get_info(dpy, scrnconf)) {
+		utilx_scrnconf_free(scrnconf);
+		goto fail;
+	}
 
-    if (scrnconf->dispmode == dispmode)
-    {
-        fprintf (stderr, "[utilx_scrnconf]: dispmode (%d) already set\n", dispmode);
-        utilx_scrnconf_free (scrnconf);
-        return 1;
-    }
+	if (scrnconf->status  == UTILX_SCRNCONF_STATUS_NULL) {
+		fprintf(stderr, "[utilx_scrnconf]: the status of screen configuration is null\n");
+		utilx_scrnconf_free(scrnconf);
+		goto fail;
+	}
 
-    utilx_scrnconf_free (scrnconf);
+	if (scrnconf->dispmode == dispmode) {
+		fprintf(stderr, "[utilx_scrnconf]: dispmode (%d) already set\n", dispmode);
+		utilx_scrnconf_free(scrnconf);
 
-    scrnconf_atom = XInternAtom (dpy, "_SCRNCONF_DISPMODE_SET", False);
+		TTRACE_VIDEO_END();
+		return 1;
+	}
+
+	utilx_scrnconf_free(scrnconf);
+
+	scrnconf_atom = XInternAtom(dpy, "_SCRNCONF_DISPMODE_SET", False);
 
 	xev.xclient.window = win;
 	xev.xclient.type = ClientMessage;
@@ -885,796 +979,772 @@ API int utilx_scrnconf_set_dispmode (Display *dpy, Utilx_Scrnconf_Dispmode dispm
 	XSendEvent(dpy, win, False, StructureNotifyMask, &xev);
 	XSync(dpy, False);
 
-    return 1;
+	TTRACE_VIDEO_END();
+	return 1;
+fail:
+	TTRACE_VIDEO_END();
+	return 0;
 }
 
-typedef struct _ShotInfo
-{
-    Display *dpy;
+typedef struct _ShotInfo {
+	Display *dpy;
 
-    /* PutImage */
-    int      port;
-    unsigned int width;
-    unsigned int height;
-    Pixmap   pixmap;
-    GC       gc;
+	/* PutImage */
+	int      port;
+	unsigned int width;
+	unsigned int height;
+	Pixmap   pixmap;
+	GC       gc;
 
-    /* Damage */
-    Damage   damage;
-    int      damage_base;
+	/* Damage */
+	Damage   damage;
+	int      damage_base;
 
-    void    *virtual;
+	void    *virtual;
 
-    /* XShm */
-    XImage    *image;
-    XShmSegmentInfo shminfo;
+	/* XShm */
+	XImage    *image;
+	XShmSegmentInfo shminfo;
 } ShotInfo;
 
-#define FOURCC(a,b,c,d) (((unsigned)d&0xff)<<24 | ((unsigned)c&0xff)<<16 | ((unsigned)b&0xff)<<8 | ((unsigned)a&0xff))
+#define FOURCC(a, b, c, d) (((unsigned)d&0xff)<<24 | ((unsigned)c&0xff)<<16 | ((unsigned)b&0xff)<<8 | ((unsigned)a&0xff))
 
-#define FOURCC_RGB32    FOURCC('R','G','B','4')
+#define FOURCC_RGB32    FOURCC('R', 'G', 'B', '4')
 #define TIMEOUT_CAPTURE 3
 
-    /* x error handling */
+/* x error handling */
 static Bool x_error_caught;
 
 static ShotInfo *shot_info;
 
 static int
-_get_port (Display *dpy, unsigned int id, Window win)
+_get_port(Display *dpy, unsigned int id, Window win)
 {
-    unsigned int ver, rev, req_base, evt_base, err_base;
-    unsigned int adaptors;
-    XvAdaptorInfo *ai = NULL;
-    XvImageFormatValues *fo = NULL;
-    int formats;
-    int i, j, p;
+	unsigned int ver, rev, req_base, evt_base, err_base;
+	unsigned int adaptors;
+	XvAdaptorInfo *ai = NULL;
+	XvImageFormatValues *fo = NULL;
+	int formats;
+	int i, j, p;
 
-    if (XvQueryExtension (dpy, &ver, &rev, &req_base, &evt_base, &err_base) != Success)
-    {
-        fprintf (stderr, "[UTILX] no XV extension. \n");
-        return -1;
-    }
+	if (XvQueryExtension(dpy, &ver, &rev, &req_base, &evt_base, &err_base) != Success) {
+		fprintf(stderr, "[UTILX] no XV extension. \n");
+		return -1;
+	}
 
-    if (XvQueryAdaptors (dpy, win, &adaptors, &ai) != Success)
-    {
-        fprintf (stderr, "[UTILX] fail : query adaptors. \n");
-        return -1;
-    }
+	if (XvQueryAdaptors(dpy, win, &adaptors, &ai) != Success) {
+		fprintf(stderr, "[UTILX] fail : query adaptors. \n");
+		return -1;
+	}
 
-    if (!ai)
-    {
-        fprintf (stderr, "[UTILX] fail : get adaptor info. \n");
-        return -1;
-    }
+	if (!ai) {
+		fprintf(stderr, "[UTILX] fail : get adaptor info. \n");
+		return -1;
+	}
 
-    for (i = 0; i < adaptors; i++)
-    {
-        int support_format = False;
+	for (i = 0; i < adaptors; i++) {
+		int support_format = False;
 
-        if (!(ai[i].type & XvInputMask) ||
-            !(ai[i].type & XvStillMask))
-            continue;
+		if (!(ai[i].type & XvInputMask) ||
+				!(ai[i].type & XvStillMask))
+			continue;
 
-        p = ai[i].base_id;
+		p = ai[i].base_id;
 
-        fo = XvListImageFormats (dpy, p, &formats);
-        for (j = 0; j < formats; j++)
-            if (fo[j].id == (int)id)
-                support_format = True;
+		fo = XvListImageFormats(dpy, p, &formats);
+		for (j = 0; j < formats; j++)
+			if (fo[j].id == (int)id)
+				support_format = True;
 
-        if (fo)
-            XFree (fo);
+		if (fo)
+			XFree(fo);
 
-        if (!support_format)
-            continue;
+		if (!support_format)
+			continue;
 
-        for (; p < ai[i].base_id + ai[i].num_ports; p++)
-        {
-            if (XvGrabPort (dpy, p, 0) == Success)
-            {
-                XvFreeAdaptorInfo (ai);
-                return p;
-            }
-        }
+		for (; p < ai[i].base_id + ai[i].num_ports; p++) {
+			if (XvGrabPort(dpy, p, 0) == Success) {
+				XvFreeAdaptorInfo(ai);
+				return p;
+			}
+		}
 
-        fprintf (stderr, "[UTILX] fail : grab port. \n");
-    }
+		fprintf(stderr, "[UTILX] fail : grab port. \n");
+	}
 
-    XvFreeAdaptorInfo (ai);
+	XvFreeAdaptorInfo(ai);
 
-    return -1;
+	return -1;
 }
 
 static void
-_deinit_screen_shot (ShotInfo *info)
+_deinit_screen_shot(ShotInfo *info)
 {
-    if (!info)
-        return;
+	if (!info)
+		return;
 
-    if (info->port > 0 && info->pixmap > 0)
-        XvStopVideo (info->dpy, info->port, info->pixmap);
+	if (info->port > 0 && info->pixmap > 0)
+		XvStopVideo(info->dpy, info->port, info->pixmap);
 
-    if (info->image)
-        XDestroyImage (info->image);
-    if (info->shminfo.shmid != -1)
-    {
-        XShmDetach (info->dpy, &info->shminfo);
-        shmdt (info->shminfo.shmaddr);
-        shmctl (info->shminfo.shmid, IPC_RMID, 0);
-    }
+	if (info->image)
+		XDestroyImage(info->image);
+	if (info->shminfo.shmid != -1) {
+		XShmDetach(info->dpy, &info->shminfo);
+		shmdt(info->shminfo.shmaddr);
+		shmctl(info->shminfo.shmid, IPC_RMID, 0);
+	}
 
-    if (info->damage)
-        XDamageDestroy (info->dpy, info->damage);
+	if (info->damage)
+		XDamageDestroy(info->dpy, info->damage);
 
-    if (info->gc)
-        XFreeGC (info->dpy, info->gc);
-    if (info->pixmap > 0)
-        XFreePixmap (info->dpy, info->pixmap);
-    if (info->port > 0)
-        XvUngrabPort (info->dpy, info->port, 0);
+	if (info->gc)
+		XFreeGC(info->dpy, info->gc);
+	if (info->pixmap > 0)
+		XFreePixmap(info->dpy, info->pixmap);
+	if (info->port > 0)
+		XvUngrabPort(info->dpy, info->port, 0);
 
-    XSync (info->dpy, False);
+	XSync(info->dpy, False);
 
-    free (info);
-    shot_info = NULL;
+	free(info);
+	shot_info = NULL;
 }
 
 static int
-_screen_shot_x_error_handle (Display *dpy, XErrorEvent *ev)
+_screen_shot_x_error_handle(Display *dpy, XErrorEvent *ev)
 {
-    if (!shot_info || (dpy != shot_info->dpy))
-        return 0;
+	if (!shot_info || (dpy != shot_info->dpy))
+		return 0;
 
-    x_error_caught = True;
+	x_error_caught = True;
 
-    return 0;
+	return 0;
 }
 
 static Bool
-_init_screen_shot_damage (ShotInfo *info)
+_init_screen_shot_damage(ShotInfo *info)
 {
-    int damage_err_base = 0;
+	int damage_err_base = 0;
 
-    if (!XDamageQueryExtension(info->dpy, &info->damage_base, &damage_err_base))
-    {
-        fprintf (stderr, "[UTILX] no X Damage extension. \n");
-        return False;
-    }
+	if (!XDamageQueryExtension(info->dpy, &info->damage_base, &damage_err_base)) {
+		fprintf(stderr, "[UTILX] no X Damage extension. \n");
+		return False;
+	}
 
-    info->damage = XDamageCreate (info->dpy, info->pixmap, XDamageReportNonEmpty);
-    if (info->damage <= 0)
-    {
-        fprintf (stderr, "[UTILX] fail : create damage \n");
-        return False;
-    }
+	info->damage = XDamageCreate(info->dpy, info->pixmap, XDamageReportNonEmpty);
+	if (info->damage <= 0) {
+		fprintf(stderr, "[UTILX] fail : create damage \n");
+		return False;
+	}
 
-    return True;
+	return True;
 }
 
 static Bool
-_init_screen_shot_shm (ShotInfo *info)
+_init_screen_shot_shm(ShotInfo *info)
 {
-    if (!XShmQueryExtension (info->dpy))
-    {
-        fprintf (stderr, "[UTILX] no XShm extension. !!\n");
-        return False;
-    }
+	if (!XShmQueryExtension(info->dpy)) {
+		fprintf(stderr, "[UTILX] no XShm extension. !!\n");
+		return False;
+	}
 
-    info->image = XShmCreateImage (info->dpy,
-                                   DefaultVisual (info->dpy, DefaultScreen (info->dpy)),
-                                   DefaultDepth (info->dpy, DefaultScreen (info->dpy)),
-                                   ZPixmap,
-                                   NULL,
-                                   &info->shminfo,
-                                   info->width,
-                                   info->height);
-    if (!info->image)
-    {
-        fprintf (stderr, "[UTILX] fail : XShmCreateImage \n");
-        return False;
-    }
+	info->image = XShmCreateImage(info->dpy,
+			DefaultVisual(info->dpy, DefaultScreen(info->dpy)),
+			DefaultDepth(info->dpy, DefaultScreen(info->dpy)),
+			ZPixmap,
+			NULL,
+			&info->shminfo,
+			info->width,
+			info->height);
+	if (!info->image) {
+		fprintf(stderr, "[UTILX] fail : XShmCreateImage \n");
+		return False;
+	}
 
-    info->shminfo.shmid = shmget (IPC_PRIVATE, info->image->bytes_per_line * info->height, IPC_CREAT | 0777);
-    if (info->shminfo.shmid == -1)
-    {
-        XDestroyImage (info->image);
-        fprintf (stderr, "[UTILX] fail : shmget\n");
-        return False;
-    }
+	info->shminfo.shmid = shmget(IPC_PRIVATE, info->image->bytes_per_line * info->height, IPC_CREAT | 0777);
+	if (info->shminfo.shmid == -1) {
+		XDestroyImage(info->image);
+		fprintf(stderr, "[UTILX] fail : shmget\n");
+		return False;
+	}
 
-    info->shminfo.shmaddr = shmat (info->shminfo.shmid, 0, 0);
-    if (info->shminfo.shmaddr == (void *) -1)
-    {
-        XDestroyImage (info->image);
-        shmctl (info->shminfo.shmid, IPC_RMID, 0);
-        info->shminfo.shmid = -1;
-        fprintf (stderr, "[UTILX] fail : shmat\n");
-        return False;
-    }
+	info->shminfo.shmaddr = shmat(info->shminfo.shmid, 0, 0);
+	if (info->shminfo.shmaddr == (void *) -1) {
+		XDestroyImage(info->image);
+		shmctl(info->shminfo.shmid, IPC_RMID, 0);
+		info->shminfo.shmid = -1;
+		fprintf(stderr, "[UTILX] fail : shmat\n");
+		return False;
+	}
 
-    info->shminfo.readOnly = False;
+	info->shminfo.readOnly = False;
 
-    if (!XShmAttach (info->dpy, &info->shminfo))
-    {
-        XDestroyImage (info->image);
-        shmdt (info->shminfo.shmaddr);
-        shmctl (info->shminfo.shmid, IPC_RMID, 0);
-        info->shminfo.shmid = -1;
-        fprintf (stderr, "[UTILX] fail : XShmAttach\n");
-        return False;
-    }
+	if (!XShmAttach(info->dpy, &info->shminfo)) {
+		XDestroyImage(info->image);
+		shmdt(info->shminfo.shmaddr);
+		shmctl(info->shminfo.shmid, IPC_RMID, 0);
+		info->shminfo.shmid = -1;
+		fprintf(stderr, "[UTILX] fail : XShmAttach\n");
+		return False;
+	}
 
-    info->image->data = info->shminfo.shmaddr;
-    info->virtual = info->shminfo.shmaddr;
+	info->image->data = info->shminfo.shmaddr;
+	info->virtual = info->shminfo.shmaddr;
 
-    return True;
+	return True;
 }
 
-static ShotInfo*
-_init_screen_shot (Display* dpy, unsigned int width, unsigned int height)
+static ShotInfo *
+_init_screen_shot(Display *dpy, unsigned int width, unsigned int height)
 {
-    ShotInfo *info = NULL;
-    static Atom atom_capture = None;
-    XErrorHandler old_handler = NULL;
+	ShotInfo *info = NULL;
+	static Atom atom_capture = None;
+	XErrorHandler old_handler = NULL;
 
-    if (shot_info)
-    {
-        if (shot_info->width == width && shot_info->height == height)
-            return shot_info;
+	if (shot_info) {
+		if (shot_info->width == width && shot_info->height == height)
+			return shot_info;
 
-        _deinit_screen_shot (shot_info);
-    }
+		_deinit_screen_shot(shot_info);
+	}
 
-    info = calloc (1, sizeof (ShotInfo));
-    if (!info)
-        goto fail_init;
+	info = calloc(1, sizeof(ShotInfo));
+	if (!info)
+		goto fail_init;
 
-    shot_info = info;
+	shot_info = info;
 
-    /* dpy */
-    info->dpy = dpy;
-    info->shminfo.shmid = -1;
-    info->shminfo.shmaddr = (void*)-1;
+	/* dpy */
+	info->dpy = dpy;
+	info->shminfo.shmid = -1;
+	info->shminfo.shmaddr = (void *)-1;
 
-    /* port */
-    info->port = _get_port (info->dpy, FOURCC_RGB32, DefaultRootWindow (dpy));
-    if (info->port <= 0)
-        goto fail_init;
+	/* port */
+	info->port = _get_port(info->dpy, FOURCC_RGB32, DefaultRootWindow(dpy));
+	if (info->port <= 0)
+		goto fail_init;
 
-    /* width, height */
-    if (atom_capture == None)
-        atom_capture = XInternAtom (info->dpy, "_USER_WM_PORT_ATTRIBUTE_CAPTURE", False);
+	/* width, height */
+	if (atom_capture == None)
+		atom_capture = XInternAtom(info->dpy, "_USER_WM_PORT_ATTRIBUTE_CAPTURE", False);
 
-    XSync (info->dpy, 0);
-    x_error_caught = False;
-    old_handler = XSetErrorHandler (_screen_shot_x_error_handle);
+	XSync(info->dpy, 0);
+	x_error_caught = False;
+	old_handler = XSetErrorHandler(_screen_shot_x_error_handle);
 
-    XvSetPortAttribute (info->dpy, info->port, atom_capture, 1);
+	XvSetPortAttribute(info->dpy, info->port, atom_capture, 1);
 
-    XSync (info->dpy, 0);
+	XSync(info->dpy, 0);
 
-    x_error_caught = False;
-    XSetErrorHandler (old_handler);
+	x_error_caught = False;
+	XSetErrorHandler(old_handler);
 
-    XvQueryBestSize (info->dpy, info->port, 0, 0, 0, width, height, &width, &height);
-    if (width <= 0 || height <= 0)
-        goto fail_init;
-    info->width = width;
-    info->height = height;
+	XvQueryBestSize(info->dpy, info->port, 0, 0, 0, width, height, &width, &height);
+	if (width <= 0 || height <= 0)
+		goto fail_init;
+	info->width = width;
+	info->height = height;
 
-    /* pixmap */
-    info->pixmap = XCreatePixmap (info->dpy,
-                                  DefaultRootWindow (info->dpy),
-                                  width, height,
-                                  DefaultDepth (info->dpy, DefaultScreen (info->dpy)));
-    if (info->pixmap <= 0)
-    {
-        fprintf (stderr, "[UTILX] fail : create pixmap. \n");
-        goto fail_init;
-    }
+	/* pixmap */
+	info->pixmap = XCreatePixmap(info->dpy,
+			DefaultRootWindow(info->dpy),
+			width, height,
+			DefaultDepth(info->dpy, DefaultScreen(info->dpy)));
+	if (info->pixmap <= 0) {
+		fprintf(stderr, "[UTILX] fail : create pixmap. \n");
+		goto fail_init;
+	}
 
-    /* gc */
-    info->gc = XCreateGC (info->dpy, info->pixmap, 0, 0);
-    if (info->gc == NULL)
-    {
-        fprintf (stderr, "[UTILX] fail : create gc. \n");
-        goto fail_init;
-    }
+	/* gc */
+	info->gc = XCreateGC(info->dpy, info->pixmap, 0, 0);
+	if (info->gc == NULL) {
+		fprintf(stderr, "[UTILX] fail : create gc. \n");
+		goto fail_init;
+	}
 
-    XSetForeground (info->dpy, info->gc, 0xFF000000);
-    XFillRectangle (info->dpy, info->pixmap, info->gc, 0, 0, width, height);
+	XSetForeground(info->dpy, info->gc, 0xFF000000);
+	XFillRectangle(info->dpy, info->pixmap, info->gc, 0, 0, width, height);
 
-    if (!_init_screen_shot_damage (info))
-        goto fail_init;
+	if (!_init_screen_shot_damage(info))
+		goto fail_init;
 
-    if (!_init_screen_shot_shm (info))
-        goto fail_init;
-    else
-        fprintf (stderr, "[UTILX] XShm success. !!\n");
+	if (!_init_screen_shot_shm(info))
+		goto fail_init;
+	else
+		fprintf(stderr, "[UTILX] XShm success. !!\n");
 
-    if (!info->virtual)
-    {
-        fprintf (stderr, "[UTILX] fail : get virtual \n");
-        goto fail_init;
-    }
+	if (!info->virtual) {
+		fprintf(stderr, "[UTILX] fail : get virtual \n");
+		goto fail_init;
+	}
 
-    XFlush (info->dpy);
+	XFlush(info->dpy);
 
-    return info;
+	return info;
 
 fail_init:
-    _deinit_screen_shot (info);
-    return NULL;
+	_deinit_screen_shot(info);
+	return NULL;
 }
 
 API void*
-utilx_create_screen_shot (Display* dpy, int width, int height)
+utilx_create_screen_shot(Display *dpy, int width, int height)
 {
-    ShotInfo *info;
-    XEvent ev = {0,};
-    XErrorHandler old_handler = NULL;
+	ShotInfo *info;
+	XEvent ev = {0,};
+	XErrorHandler old_handler = NULL;
 
-    if (dpy == NULL)
-    {
-        fprintf (stderr, "[UTILX] invalid display(%p) \n", dpy);
-        return NULL;
-    }
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:CREATE_SCREEN_SHOT");
 
-    if (width <= 0 || height <= 0)
-    {
-        fprintf (stderr, "[UTILX] invalid size(%dx%d) \n", width, height);
-        return NULL;
-    }
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] invalid display(%p) \n", dpy);
+		goto fail;
+	}
 
-    XSync (dpy, 0);
+	if (width <= 0 || height <= 0) {
+		fprintf(stderr, "[UTILX] invalid size(%dx%d) \n", width, height);
+		goto fail;
+	}
 
-    info = _init_screen_shot (dpy, width, height);
+	XSync(dpy, 0);
 
-    if (!info)
-    {
-        fprintf (stderr, "[UTILX] fail : initialize screenshot. \n");
-        return NULL;
-    }
+	info = _init_screen_shot(dpy, width, height);
 
-    XSync (dpy, 0);
+	if (!info) {
+		fprintf(stderr, "[UTILX] fail : initialize screenshot. \n");
+		goto fail;
+	}
 
-    x_error_caught = False;
-    old_handler = XSetErrorHandler (_screen_shot_x_error_handle);
+	XSync(dpy, 0);
 
-    XvPutStill (info->dpy, info->port, info->pixmap, info->gc,
-                0, 0, info->width, info->height,
-                0, 0, info->width, info->height);
+	x_error_caught = False;
+	old_handler = XSetErrorHandler(_screen_shot_x_error_handle);
 
-    XSync (dpy, 0);
+	XvPutStill(info->dpy, info->port, info->pixmap, info->gc,
+			0, 0, info->width, info->height,
+			0, 0, info->width, info->height);
 
-    if (x_error_caught)
-    {
-        x_error_caught = False;
-        XSetErrorHandler (old_handler);
-        return NULL;
-    }
+	XSync(dpy, 0);
 
-    x_error_caught = False;
-    XSetErrorHandler (old_handler);
+	if (x_error_caught) {
+		x_error_caught = False;
+		XSetErrorHandler(old_handler);
+		goto fail;
+	}
 
-    if (XPending (info->dpy))
-        XNextEvent (info->dpy, &ev);
-    else
-    {
-        int fd = ConnectionNumber (info->dpy);
-        fd_set mask;
-        struct timeval tv;
-        int ret;
+	x_error_caught = False;
+	XSetErrorHandler(old_handler);
 
-        FD_ZERO (&mask);
-        FD_SET (fd, &mask);
+	if (XPending(info->dpy))
+		XNextEvent(info->dpy, &ev);
+	else {
+		int fd = ConnectionNumber(info->dpy);
+		fd_set mask;
+		struct timeval tv;
+		int ret;
 
-        tv.tv_usec = 0;
-        tv.tv_sec = TIMEOUT_CAPTURE;
+		FD_ZERO(&mask);
+		FD_SET(fd, &mask);
 
-        ret = select (fd + 1, &mask, 0, 0, &tv);
-        if (ret < 0)
-            fprintf (stderr, "[UTILX] fail: select.\n");
-        else if (ret == 0)
-            fprintf (stderr, "[UTILX] timeout(%d sec)!\n", TIMEOUT_CAPTURE);
-        else if (XPending (info->dpy))
-            XNextEvent (info->dpy, &ev);
-        else
-            fprintf (stderr, "[UTILX] fail: not passed a event!\n");
-    }
+		tv.tv_usec = 0;
+		tv.tv_sec = TIMEOUT_CAPTURE;
 
-    if (ev.type == (info->damage_base + XDamageNotify))
-    {
-        XDamageNotifyEvent *damage_ev = (XDamageNotifyEvent *)&ev;
-        if (damage_ev->drawable == info->pixmap)
-        {
-            XShmGetImage (info->dpy, info->pixmap, info->image, 0, 0, AllPlanes);
-            XDamageSubtract (info->dpy, info->damage, None, None );
-            return info->virtual;
-        }
+		ret = select(fd + 1, &mask, 0, 0, &tv);
+		if (ret < 0)
+			fprintf(stderr, "[UTILX] fail: select.\n");
+		else if (ret == 0)
+			fprintf(stderr, "[UTILX] timeout(%d sec)!\n", TIMEOUT_CAPTURE);
+		else if (XPending(info->dpy))
+			XNextEvent(info->dpy, &ev);
+		else
+			fprintf(stderr, "[UTILX] fail: not passed a event!\n");
+	}
 
-        XDamageSubtract (info->dpy, info->damage, None, None );
-    }
+	if (ev.type == (info->damage_base + XDamageNotify)) {
+		XDamageNotifyEvent *damage_ev = (XDamageNotifyEvent *)&ev;
+		if (damage_ev->drawable == info->pixmap) {
+			XShmGetImage(info->dpy, info->pixmap, info->image, 0, 0, AllPlanes);
+			XDamageSubtract(info->dpy, info->damage, None, None);
 
-    utilx_release_screen_shot ();
+			TTRACE_VIDEO_END();
+			return info->virtual;
+		}
 
-    return NULL;
+		XDamageSubtract(info->dpy, info->damage, None, None);
+	}
+
+	utilx_release_screen_shot();
+fail:
+	TTRACE_VIDEO_END();
+	return NULL;
 }
 
 static ShotInfo*
-_init_video_screen_shot (Display* dpy, unsigned int width, unsigned int height, Window win)
+_init_video_screen_shot(Display *dpy, unsigned int width, unsigned int height, Window win)
 {
-    ShotInfo *info = NULL;
-    static Atom atom_capture = None;
-    static Atom atom_capture_on_win = None;
-    XErrorHandler old_handler = NULL;
+	ShotInfo *info = NULL;
+	static Atom atom_capture = None;
+	static Atom atom_capture_on_win = None;
+	XErrorHandler old_handler = NULL;
 
-    if (shot_info)
-    {
-        if (shot_info->width == width && shot_info->height == height)
-            return shot_info;
+	if (shot_info) {
+		if (shot_info->width == width && shot_info->height == height)
+			return shot_info;
 
-        _deinit_screen_shot (shot_info);
-    }
+		_deinit_screen_shot(shot_info);
+	}
 
-    info = calloc (1, sizeof (ShotInfo));
-    if (!info)
-        goto fail_init;
+	info = calloc(1, sizeof(ShotInfo));
+	if (!info)
+		goto fail_init;
 
-    shot_info = info;
+	shot_info = info;
 
-    /* dpy */
-    info->dpy = dpy;
-    info->shminfo.shmid = -1;
-    info->shminfo.shmaddr = (void*)-1;
+	/* dpy */
+	info->dpy = dpy;
+	info->shminfo.shmid = -1;
+	info->shminfo.shmaddr = (void *)-1;
 
-    /* port */
-    info->port = _get_port (info->dpy, FOURCC_RGB32, win);
-    if (info->port <= 0)
-        goto fail_init;
+	/* port */
+	info->port = _get_port(info->dpy, FOURCC_RGB32, win);
+	if (info->port <= 0)
+		goto fail_init;
 
-    /* width, height */
-    if (atom_capture == None)
-        atom_capture = XInternAtom (info->dpy, "_USER_WM_PORT_ATTRIBUTE_CAPTURE", False);
+	/* width, height */
+	if (atom_capture == None)
+		atom_capture = XInternAtom(info->dpy, "_USER_WM_PORT_ATTRIBUTE_CAPTURE", False);
 
-    if (atom_capture_on_win  == None)
-        atom_capture_on_win = XInternAtom (info->dpy, "_USER_WM_PORT_ATTRIBUTE_CAPTURE_ON_WINDOW", False);
+	if (atom_capture_on_win == None)
+		atom_capture_on_win = XInternAtom(info->dpy, "_USER_WM_PORT_ATTRIBUTE_CAPTURE_ON_WINDOW", False);
 
-    XSync (info->dpy, 0);
-    x_error_caught = False;
-    old_handler = XSetErrorHandler (_screen_shot_x_error_handle);
+	XSync(info->dpy, 0);
+	x_error_caught = False;
+	old_handler = XSetErrorHandler(_screen_shot_x_error_handle);
 
-    XvSetPortAttribute (info->dpy, info->port, atom_capture, 3);
-    XvSetPortAttribute (info->dpy, info->port, atom_capture_on_win, 1);
+	XvSetPortAttribute(info->dpy, info->port, atom_capture, 3);
+	XvSetPortAttribute(info->dpy, info->port, atom_capture_on_win, 1);
 
-    XSync (info->dpy, 0);
+	XSync(info->dpy, 0);
 
-    x_error_caught = False;
-    XSetErrorHandler (old_handler);
+	x_error_caught = False;
+	XSetErrorHandler(old_handler);
 
-    XvQueryBestSize (info->dpy, info->port, 0, 0, 0, width, height, &width, &height);
-    if (width <= 0 || height <= 0)
-        goto fail_init;
-    info->width = width;
-    info->height = height;
+	XvQueryBestSize(info->dpy, info->port, 0, 0, 0, width, height, &width, &height);
+	if (width <= 0 || height <= 0)
+		goto fail_init;
+	info->width = width;
+	info->height = height;
 
-    /* pixmap */
-    info->pixmap = XCreatePixmap (info->dpy,
-                                  win,
-                                  width, height,
-                                  DefaultDepth (info->dpy, DefaultScreen (info->dpy)));
-    if (info->pixmap <= 0)
-    {
-        fprintf (stderr, "[UTILX] fail : create pixmap. \n");
-        goto fail_init;
-    }
+	/* pixmap */
+	info->pixmap = XCreatePixmap(info->dpy,
+			win,
+			width, height,
+			DefaultDepth(info->dpy, DefaultScreen(info->dpy)));
+	if (info->pixmap <= 0) {
+		fprintf(stderr, "[UTILX] fail : create pixmap. \n");
+		goto fail_init;
+	}
 
-    /* gc */
-    info->gc = XCreateGC (info->dpy, info->pixmap, 0, 0);
-    if (info->gc == NULL)
-    {
-        fprintf (stderr, "[UTILX] fail : create gc. \n");
-        goto fail_init;
-    }
+	/* gc */
+	info->gc = XCreateGC(info->dpy, info->pixmap, 0, 0);
+	if (info->gc == NULL) {
+		fprintf(stderr, "[UTILX] fail : create gc. \n");
+		goto fail_init;
+	}
 
-    XSetForeground (info->dpy, info->gc, 0xFF000000);
-    XFillRectangle (info->dpy, info->pixmap, info->gc, 0, 0, width, height);
+	XSetForeground(info->dpy, info->gc, 0xFF000000);
+	XFillRectangle(info->dpy, info->pixmap, info->gc, 0, 0, width, height);
 
-    if (!_init_screen_shot_damage (info))
-        goto fail_init;
+	if (!_init_screen_shot_damage(info))
+		goto fail_init;
 
-    if (!_init_screen_shot_shm (info))
-        goto fail_init;
-    else
-        fprintf (stderr, "[UTILX] XShm success. !!\n");
+	if (!_init_screen_shot_shm(info))
+		goto fail_init;
+	else
+		fprintf(stderr, "[UTILX] XShm success. !!\n");
 
-    if (!info->virtual)
-    {
-        fprintf (stderr, "[UTILX] fail : get virtual \n");
-        goto fail_init;
-    }
+	if (!info->virtual) {
+		fprintf(stderr, "[UTILX] fail : get virtual \n");
+		goto fail_init;
+	}
 
-    XFlush (info->dpy);
+	XFlush(info->dpy);
 
-    return info;
+	return info;
 
 fail_init:
-    _deinit_screen_shot (info);
-    return NULL;
+	_deinit_screen_shot(info);
+	return NULL;
 }
 
 Bool
 predicate_proc(Display *dpy, XEvent *event, char *arg)
 {
-    ShotInfo *info = (ShotInfo *)arg;
+	ShotInfo *info = (ShotInfo *)arg;
 
-    if(event->type == (info->damage_base + XDamageNotify))
-        return True;
-    else
-        return False;
+	if (event->type == (info->damage_base + XDamageNotify))
+		return True;
+	else
+		return False;
 }
+
 API void*
-utilx_create_video_screen_shot (Display* dpy, Window win, int width, int height)
+utilx_create_video_screen_shot(Display *dpy, Window win, int width, int height)
 {
-    ShotInfo *info;
-    XEvent ev = {0,};
-    XErrorHandler old_handler = NULL;
-    unsigned int pixmap = 0;
+	ShotInfo *info;
+	XEvent ev = {0,};
+	XErrorHandler old_handler = NULL;
+	unsigned int pixmap = 0;
 
-    if (dpy == NULL)
-    {
-        fprintf (stderr, "[UTILX] invalid display(%p) \n", dpy);
-        return NULL;
-    }
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:CREATE_VIDEO_SCREEN_SHOT");
 
-    if (width <= 0 || height <= 0)
-    {
-        fprintf (stderr, "[UTILX] invalid size(%dx%d) \n", width, height);
-        return NULL;
-    }
 
-    XSync (dpy, 0);
+	if (dpy == NULL) {
+		fprintf(stderr, "[UTILX] invalid display(%p) \n", dpy);
+		goto fail;
+	}
 
-    info = _init_video_screen_shot (dpy, width, height, win);
+	if (width <= 0 || height <= 0) {
+		fprintf(stderr, "[UTILX] invalid size(%dx%d) \n", width, height);
+		goto fail;
+	}
 
-    if (!info)
-    {
-        fprintf (stderr, "[UTILX] fail : initialize screenshot. \n");
-        return NULL;
-    }
+	XSync(dpy, 0);
 
-    if (!_atom_window_pixman)
-    {
-        _atom_window_pixman = XInternAtom (dpy, "_UTIL_WINDOW_PIXMAP_HANDLE", False);
-        if (!_atom_window_pixman)
-        {
-            fprintf (stderr, "[UTILX] Error.. Cannot create _UTIL_WINDOW_PIXMAP_HANDLE atom.. %s (%d)\n", __func__, __LINE__);
-            return 0;
-        }
-    }
+	info = _init_video_screen_shot(dpy, width, height, win);
 
-    x_error_caught = False;
-    old_handler = XSetErrorHandler (_screen_shot_x_error_handle);
+	if (!info) {
+		fprintf(stderr, "[UTILX] fail : initialize screenshot. \n");
+		goto fail;
+	}
 
-    pixmap = (unsigned int)info->pixmap;
-    XChangeProperty (dpy, win, _atom_window_pixman, XA_PIXMAP, 32, PropModeReplace, (unsigned char *)((unsigned int *)&pixmap), 1);
-    XSync (dpy, 0);
+	if (!_atom_window_pixman) {
+		_atom_window_pixman = XInternAtom(dpy, "_UTIL_WINDOW_PIXMAP_HANDLE", False);
+		if (!_atom_window_pixman) {
+			fprintf(stderr, "[UTILX] Error.. Cannot create _UTIL_WINDOW_PIXMAP_HANDLE atom.. %s (%d)\n", __func__, __LINE__);
+			TTRACE_VIDEO_END();
+			return 0;
+		}
+	}
 
-    if (x_error_caught)
-    {
-        x_error_caught = False;
-        XSetErrorHandler (old_handler);
-        return NULL;
-    }
+	x_error_caught = False;
+	old_handler = XSetErrorHandler(_screen_shot_x_error_handle);
 
-    XvPutStill (info->dpy, info->port, info->pixmap, info->gc,
-                0, 0, info->width, info->height,
-                0, 0, info->width, info->height);
-    XSync (dpy, 0);
+	pixmap = (unsigned int)info->pixmap;
+	XChangeProperty(dpy, win, _atom_window_pixman, XA_PIXMAP, 32, PropModeReplace, (unsigned char *)((unsigned int *)&pixmap), 1);
+	XSync(dpy, 0);
 
-    if (x_error_caught)
-    {
-        x_error_caught = False;
-        XSetErrorHandler (old_handler);
-        return NULL;
-    }
+	if (x_error_caught) {
+		x_error_caught = False;
+		XSetErrorHandler(old_handler);
+		goto fail;
+	}
 
-    XDeleteProperty(info->dpy, win, _atom_window_pixman);
-    _atom_window_pixman = None;
-    XSync (dpy, 0);
+	XvPutStill(info->dpy, info->port, info->pixmap, info->gc,
+			0, 0, info->width, info->height,
+			0, 0, info->width, info->height);
+	XSync(dpy, 0);
 
-    x_error_caught = False;
-    XSetErrorHandler (old_handler);
+	if (x_error_caught) {
+		x_error_caught = False;
+		XSetErrorHandler(old_handler);
+		goto fail;
+	}
 
-    XIfEvent(info->dpy, &ev, predicate_proc, info);
-    if (ev.type == (info->damage_base + XDamageNotify))
-    {
-        XDamageNotifyEvent *damage_ev = (XDamageNotifyEvent *)&ev;
-        if (damage_ev->drawable == info->pixmap)
-        {
-            XShmGetImage (info->dpy, info->pixmap, info->image, 0, 0, AllPlanes);
-            XDamageSubtract (info->dpy, info->damage, None, None );
-            return info->virtual;
-        }
+	XDeleteProperty(info->dpy, win, _atom_window_pixman);
+	_atom_window_pixman = None;
+	XSync(dpy, 0);
 
-        XDamageSubtract (info->dpy, info->damage, None, None );
-    }
+	x_error_caught = False;
+	XSetErrorHandler(old_handler);
 
-    utilx_release_screen_shot ();
+	XIfEvent(info->dpy, &ev, predicate_proc, info);
+	if (ev.type == (info->damage_base + XDamageNotify)) {
+		XDamageNotifyEvent *damage_ev = (XDamageNotifyEvent *)&ev;
+		if (damage_ev->drawable == info->pixmap) {
+			XShmGetImage(info->dpy, info->pixmap, info->image, 0, 0, AllPlanes);
+			XDamageSubtract(info->dpy, info->damage, None, None);
 
-    return NULL;
+			TTRACE_VIDEO_END();
+			return info->virtual;
+		}
+
+		XDamageSubtract(info->dpy, info->damage, None, None);
+	}
+
+	utilx_release_screen_shot();
+fail:
+	TTRACE_VIDEO_END();
+	return NULL;
 }
 
 API void
-utilx_release_screen_shot (void)
+utilx_release_screen_shot(void)
 {
-    _deinit_screen_shot (shot_info);
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:RELEASE_SCREEN_SHOT");
+	_deinit_screen_shot(shot_info);
+	TTRACE_VIDEO_END();
 }
 
 #define XRR_PROPERTY_FB_VISIBLE     "XRR_PROPERTY_FB_VISIBLE"
 #define XRR_PROPERTY_VIDEO_OFFSET   "XRR_PROPERTY_VIDEO_OFFSET"
 
 static Bool
-_utilx_xrr_set_property (Display* dpy, Atom atom, unsigned char *buf, int buf_len, unsigned char **get)
+_utilx_xrr_set_property(Display *dpy, Atom atom, unsigned char *buf, int buf_len, unsigned char **get)
 {
-    Window root = None;
-    XRRScreenResources *res = NULL;
-    RROutput rr_output = None;
-    int i;
+	Window root = None;
+	XRRScreenResources *res = NULL;
+	RROutput rr_output = None;
+	int i;
 
-    root = XRootWindow (dpy, 0);
-    if (root == None)
-    {
-        fprintf (stderr, "[UTILX] Warning : Root window is None.. %s (%d)\n", __func__, __LINE__);
-        return False;
-    }
+	root = XRootWindow(dpy, 0);
+	if (root == None) {
+		fprintf(stderr, "[UTILX] Warning : Root window is None.. %s (%d)\n", __func__, __LINE__);
+		return False;
+	}
 
-    res = XRRGetScreenResources (dpy, root);
-    if (res == NULL || res->noutput == 0)
-    {
-        fprintf (stderr, "[UTILX] Warning : ScreenResources is None.. %s (%d)\n", __func__, __LINE__);
-        return False;
-    }
+	res = XRRGetScreenResources(dpy, root);
+	if (res == NULL || res->noutput == 0) {
+		fprintf(stderr, "[UTILX] Warning : ScreenResources is None.. %s (%d)\n", __func__, __LINE__);
+		return False;
+	}
 
-    for (i = 0; i < res->noutput; i++)
-    {
-        XRROutputInfo *output_info = XRRGetOutputInfo (dpy, res, res->outputs[i]);
-        if (output_info)
-        {
-            if (!strcmp (output_info->name, "LVDS1"))
-            {
-                rr_output = res->outputs[i];
-                XRRFreeOutputInfo(output_info);
-                break;
-            }
-            XRRFreeOutputInfo(output_info);
-        }
-    }
+	for (i = 0; i < res->noutput; i++) {
+		XRROutputInfo *output_info = XRRGetOutputInfo(dpy, res, res->outputs[i]);
+		if (output_info) {
+			if (!strncmp(output_info->name, "LVDS1", sizeof("LVDS1"))) {
+				rr_output = res->outputs[i];
+				XRRFreeOutputInfo(output_info);
+				break;
+			}
+			XRRFreeOutputInfo(output_info);
+		}
+	}
 
-    if (rr_output == None)
-    {
-        fprintf (stderr, "[UTILX] Warning : output is None.. %s (%d)\n", __func__, __LINE__);
-        XRRFreeScreenResources (res);
-        return False;
-    }
+	if (rr_output == None) {
+		fprintf(stderr, "[UTILX] Warning : output is None.. %s (%d)\n", __func__, __LINE__);
+		XRRFreeScreenResources(res);
+		return False;
+	}
 
-    XRRChangeOutputProperty (dpy, rr_output, atom,
-                             XA_CARDINAL, 8, PropModeReplace, buf, buf_len);
+	XRRChangeOutputProperty(dpy, rr_output, atom,
+			XA_CARDINAL, 8, PropModeReplace, buf, buf_len);
 
-    if (get)
-    {
-        Atom actual_type;
-        int actual_format;
-        unsigned long nitems, bytes_after;
+	if (get) {
+		Atom actual_type;
+		int actual_format;
+		unsigned long nitems, bytes_after;
 
-        XRRGetOutputProperty (dpy, rr_output, atom,
-                              0, 1024L,
-                              True, False, XA_CARDINAL,
-                              &actual_type, &actual_format,
-                              &nitems, &bytes_after,
-                              get);
-    }
+		XRRGetOutputProperty(dpy, rr_output, atom,
+				0, 1024L,
+				True, False, XA_CARDINAL,
+				&actual_type, &actual_format,
+				&nitems, &bytes_after,
+				get);
+	}
 
-    XSync (dpy, 0);
+	XSync(dpy, 0);
 
-    XRRFreeScreenResources (res);
+	XRRFreeScreenResources(res);
 
-    return True;
+	return True;
 }
 
 API void
-utilx_set_fb_visible (Display* dpy, Utilx_Fb_Type fb, Bool visible)
+utilx_set_fb_visible(Display *dpy, Utilx_Fb_Type fb, Bool visible)
 {
-    static Atom property = None;
-    char buf[8192] = {0,};
-    char *p = buf;
-    int buf_len = 0;
+	static Atom property = None;
+	char buf[8192] = {0,};
+	char *p = buf;
+	int buf_len = 0;
 
-    if (!dpy)
-    {
-        fprintf (stderr, "[UTILX] invalid display(%p).. %s (%d)\n", dpy, __func__, __LINE__);
-        return;
-    }
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:SET_FB_VISIBLE");
 
-    if (fb <= UTILX_FB_TYPE_NONE || fb > UTILX_FB_TYPE_OVERLAY)
-    {
-        fprintf (stderr, "[UTILX] Error.. Invald fb(%d).. %s (%d)\n", fb, __func__, __LINE__);
-        return;
-    }
+	if (!dpy) {
+		fprintf(stderr, "[UTILX] invalid display(%p).. %s (%d)\n", dpy, __func__, __LINE__);
+		goto out;
+	}
 
-    p += sprintf (p, "%d:", 0);
-    p += sprintf (p, "%d", fb + 2);
-    p += sprintf (p, ":%d", (visible > 0)? 1 : 0);
+	if (fb <= UTILX_FB_TYPE_NONE || fb > UTILX_FB_TYPE_OVERLAY) {
+		fprintf(stderr, "[UTILX] Error.. Invald fb(%d).. %s (%d)\n", fb, __func__, __LINE__);
+		goto out;
+	}
 
-    *p = '\0';
-    p++;
+	p += snprintf(p, strlen("0") + 1, "%d:", 0);
+	p += snprintf(p, strlen("0") + 1, "%d", fb + 2);
+	p += snprintf(p, strlen("0") + 2, ":%d", (visible > 0) ? 1 : 0);
 
-    buf_len = p - buf;
+	*p = '\0';
+	p++;
 
-    if (property == None)
-        property = XInternAtom (dpy, XRR_PROPERTY_FB_VISIBLE, False);
+	buf_len = p - buf;
 
-    if (property == None)
-    {
-        fprintf (stderr, "[UTILX] Warning : FB_VISIBLE property is None.. %s (%d)\n", __func__, __LINE__);
-        return;
-    }
+	if (property == None)
+		property = XInternAtom(dpy, XRR_PROPERTY_FB_VISIBLE, False);
 
-    if (!_utilx_xrr_set_property (dpy, property, (unsigned char*)buf, buf_len, NULL))
-    {
-        fprintf (stderr, "[UTILX] Warning : set_property failed.. %s (%d)\n", __func__, __LINE__);
-        return;
-    }
+	if (property == None) {
+		fprintf(stderr, "[UTILX] Warning : FB_VISIBLE property is None.. %s (%d)\n", __func__, __LINE__);
+		goto out;
+	}
+
+	if (!_utilx_xrr_set_property(dpy, property, (unsigned char *)buf, buf_len, NULL)) {
+		fprintf(stderr, "[UTILX] Warning : set_property failed.. %s (%d)\n", __func__, __LINE__);
+		goto out;
+	}
+out:
+	TTRACE_VIDEO_END();
+	return;
 }
 
 API Bool
-utilx_get_fb_visible (Display* dpy, Utilx_Fb_Type fb)
+utilx_get_fb_visible(Display *dpy, Utilx_Fb_Type fb)
 {
-    static Atom property = None;
-    char buf[32] = {0,};
-    char *p = buf;
-    int buf_len = 0;
-    unsigned char *prop = NULL;
-    Bool visible = False;
+	static Atom property = None;
+	char buf[32] = {0,};
+	char *p = buf;
+	int buf_len = 0;
+	unsigned char *prop = NULL;
+	Bool visible = False;
 
-    if (!dpy)
-    {
-        fprintf (stderr, "[UTILX] invalid display(%p).. %s (%d)\n", dpy, __func__, __LINE__);
-        return False;
-    }
+	TTRACE_VIDEO_BEGIN("XORG:UTILX:GET_FB_VISIBLE");
 
-    if (fb <= UTILX_FB_TYPE_NONE || fb > UTILX_FB_TYPE_OVERLAY)
-    {
-        fprintf (stderr, "[UTILX] Error.. Invald fb(%d).. %s (%d)\n", fb, __func__, __LINE__);
-        return False;
-    }
+	if (!dpy) {
+		fprintf(stderr, "[UTILX] invalid display(%p).. %s (%d)\n", dpy, __func__, __LINE__);
+		goto fail;
+	}
 
-    p += sprintf (p, "%d:", 0);
-    p += sprintf (p, "%d", fb + 2);
+	if (fb <= UTILX_FB_TYPE_NONE || fb > UTILX_FB_TYPE_OVERLAY) {
+		fprintf(stderr, "[UTILX] Error.. Invald fb(%d).. %s (%d)\n", fb, __func__, __LINE__);
+		goto fail;
+	}
 
-    *p = '\0';
-    p++;
+	p += snprintf(p, strlen("0") + 1, "%d:", 0);
+	p += snprintf(p, strlen("0") + 1, "%d", fb + 2);
 
-    buf_len = p - buf;
+	*p = '\0';
+	p++;
 
-    if (property == None)
-        property = XInternAtom (dpy, XRR_PROPERTY_FB_VISIBLE, False);
+	buf_len = p - buf;
 
-    if (property == None)
-    {
-        fprintf (stderr, "[UTILX] Warning : FB_VISIBLE property is None.. %s (%d)\n", __func__, __LINE__);
-        return False;
-    }
+	if (property == None)
+		property = XInternAtom(dpy, XRR_PROPERTY_FB_VISIBLE, False);
 
-    if (!_utilx_xrr_set_property (dpy, property, (unsigned char*)buf, buf_len, &prop))
-    {
-        fprintf (stderr, "[UTILX] Warning : set_property failed.. %s (%d)\n", __func__, __LINE__);
-        return False;
-    }
+	if (property == None) {
+		fprintf(stderr, "[UTILX] Warning : FB_VISIBLE property is None.. %s (%d)\n", __func__, __LINE__);
+		goto fail;
+	}
 
-    if (prop)
-        visible = atoi((char*)prop);
+	if (!_utilx_xrr_set_property(dpy, property, (unsigned char *)buf, buf_len, &prop)) {
+		fprintf(stderr, "[UTILX] Warning : set_property failed.. %s (%d)\n", __func__, __LINE__);
+		goto fail;
+	}
 
-    return visible;
+	if (prop)
+		visible = atoi((char *)prop);
+
+	TTRACE_VIDEO_END();
+	return visible;
+fail:
+	TTRACE_VIDEO_END();
+	return False;
 }
